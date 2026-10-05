@@ -83,12 +83,22 @@ body{background:var(--paper);color:var(--ink);font:15px/1.45 "IBM Plex Sans",-ap
 .qrc b{font:800 20px Archivo,sans-serif;display:block}.qrc p{margin:4px 0 0;font-size:13px;color:#5d6872}
 .qrc a{display:inline-block;margin-top:6px;font:600 14px "IBM Plex Sans";color:#0a66c2}
 .qrc button{margin-top:14px;font:600 14px "IBM Plex Sans";padding:10px 18px;border-radius:10px;border:1px solid #dde2de;background:#fff;color:#17212b}
+.trw{display:flex;gap:6px;align-items:stretch;margin-bottom:6px}
+.trow{flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;font:inherit;color:var(--ink);cursor:pointer}
+.trow img,.trow .mi{width:38px;height:44px;border-radius:6px;object-fit:cover;object-position:top;background:var(--line);flex:none;display:grid;place-items:center;font:800 13px Archivo;color:var(--muted)}
+.trow b{display:block;font:600 14px/1.2 "IBM Plex Sans"}.trow small{color:var(--muted);font-size:12px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow>span:nth-child(2){min-width:0}
+.trow .mk{margin-left:auto;flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-weight:700;color:#fff}
+.trow.on{background:var(--accent-soft);border-color:var(--accent)}.trow.on .mk{background:var(--accent);border-color:var(--accent)}
+.trow.lt{opacity:.7}
+.side{flex:none;width:64px;font:600 11px/1.2 "IBM Plex Sans";border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--muted);padding:4px}
+.tsearch{width:100%;box-sizing:border-box;font:16px "IBM Plex Sans";padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);margin-top:8px}
 .nt{font-size:12.5px;color:var(--ink);margin-top:4px;white-space:pre-wrap}
 </style>
 <div class="app">
  <div class="top"><h1>Summit Swipe</h1><span class="count" id="count"></span>
   <span style="display:flex;gap:6px"><button class="hb" id="cl-open">Claudia</button><button class="qrb" id="qr-open" aria-label="Mein LinkedIn QR-Code">in QR</button></span></div>
- <div class="tabs" style="padding-bottom:8px"><button class="tab" id="t-browse" aria-pressed="false">Blättern</button><button class="tab" id="t-swipe" aria-pressed="true">Swipen</button><button class="tab" id="t-list" aria-pressed="false">Listen</button></div>
+ <div class="tabs" style="padding-bottom:8px"><button class="tab" id="t-talk" aria-pressed="false">Gespräche</button><button class="tab" id="t-browse" aria-pressed="false">Blättern</button><button class="tab" id="t-swipe" aria-pressed="true">Swipen</button><button class="tab" id="t-list" aria-pressed="false">Listen</button></div>
  <div id="v-swipe" class="stage"></div>
  <div id="v-btns" class="btns">
   <button class="b u" id="b-undo"><span>Zurück</span>↶</button>
@@ -97,6 +107,7 @@ body{background:var(--paper);color:var(--ink);font:15px/1.45 "IBM Plex Sans",-ap
   <button class="b y" id="b-yes"><span>Treffen</span>✓</button>
  </div>
  <div id="v-list" class="lists" hidden></div>
+ <div id="v-talk" class="lists" hidden></div>
  <div id="v-browse" class="browse" hidden></div>
 </div>
 <div class="clo" id="clo" hidden><button class="x" id="cl-close">Schließen</button><div class="card" id="cl-card"></div></div>
@@ -114,7 +125,7 @@ const NKEY='summit-notes-v1';let N={};try{N=JSON.parse(localStorage.getItem(NKEY
 const nsave=()=>{try{localStorage.setItem(NKEY,JSON.stringify(N))}catch(e){}};
 function noteHTML(c){const n=N[c.name]||{};return `<div class="note" data-n="${esc(c.name)}"><label><input type="checkbox" ${n.s?'checked':''}> Gesprochen</label><textarea placeholder="Was wurde besprochen? Nächster Schritt?">${esc(n.t||'')}</textarea><small>${n.at?'Gespeichert '+new Date(n.at).toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'}):'Wird auf diesem Gerät gespeichert.'}</small></div>`;}
 function wireNotes(root){root.querySelectorAll('.note').forEach(box=>{const name=box.dataset.n,cb=box.querySelector('input'),ta=box.querySelector('textarea'),sm=box.querySelector('small');
- const up=()=>{N[name]={t:ta.value,s:cb.checked||!!ta.value.trim(),at:Date.now()};if(ta.value.trim())cb.checked=true;nsave();sm.textContent='Gespeichert '+new Date().toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'});};
+ const up=()=>{N[name]={t:ta.value,s:cb.checked||!!ta.value.trim(),l:(cb.checked||!!ta.value.trim())?false:!!(N[name]||{}).l,at:Date.now()};if(ta.value.trim())cb.checked=true;nsave();sm.textContent='Gespeichert '+new Date().toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'});};
  ta.addEventListener('input',up);cb.addEventListener('change',up);
  ['pointerdown','touchstart'].forEach(ev=>box.addEventListener(ev,e=>e.stopPropagation()));});}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -202,17 +213,28 @@ function browse(){const v=document.getElementById('v-browse');
  v.onscroll=()=>{clearTimeout(v._t);v._t=setTimeout(cnt,80)};
  let i0=0;try{i0=+localStorage.getItem('summit-bi')||0}catch(e){}
  requestAnimationFrame(()=>{v.scrollLeft=i0*(v.clientWidth+12);cnt();});}
+const st=c=>{const n=N[c.name]||{};return n.s?'spoken':(n.l?'later':'open');};
+function setSt(name,v){const o=N[name]||{};N[name]={t:o.t||'',s:v==='spoken',l:v==='later',at:Date.now()};nsave();}
+function talk(){const v=document.getElementById('v-talk');const q=(v.querySelector('.tsearch')||{}).value||'';
+ const f=c=>!q||(c.name+' '+c.role).toLowerCase().includes(q.toLowerCase());
+ const row=c=>{const s=st(c);const img=c.img?`<img src="${c.img}" alt="">`:`<div class="mi">${esc(ini(c.name))}</div>`;
+  const side=s==='open'?`<button class="side" data-n="${esc(c.name)}" data-to="later">Ein andermal</button>`:s==='later'?`<button class="side" data-n="${esc(c.name)}" data-to="open">Heute</button>`:'';
+  return `<div class="trw"><button class="trow${s==='spoken'?' on':''}${s==='later'?' lt':''}" data-n="${esc(c.name)}" data-to="${s==='spoken'?'open':'spoken'}">${img}<span><b>${esc(c.name)}</b><small>${esc(c.role)}</small></span><span class="mk">${s==='spoken'?'✓':''}</span></button>${side}</div>`;};
+ const g=k=>ALL.filter(c=>st(c)===k&&f(c));const o=g('open'),y=g('spoken'),l=g('later');
+ v.innerHTML=`<input class="tsearch" type="search" placeholder="Name suchen …" value="${esc(q)}"><p class="hint">Tippen: gesprochen ✓. Nochmal tippen: zurück.</p><h2>Heute sprechen <i>${o.length}</i></h2>${o.map(row).join('')||'<p class="hint">Alle erledigt.</p>'}<h2>💬 Gesprochen <i>${y.length}</i></h2>${y.map(row).join('')||'<p class="hint">Noch niemand.</p>'}<h2>Ein andermal <i>${l.length}</i></h2>${l.map(row).join('')||'<p class="hint">Niemand.</p>'}`;
+ const s=v.querySelector('.tsearch');s.oninput=()=>{const p=s.selectionStart;talk();const n=v.querySelector('.tsearch');n.focus();n.setSelectionRange(p,p);};
+ v.querySelectorAll('[data-to]').forEach(b=>b.onclick=()=>{setSt(b.dataset.n,b.dataset.to);talk();if(navigator.vibrate)try{navigator.vibrate(10)}catch(e){}});}
 let cur='swipe';
-function tab(t){cur=t;['browse','swipe','list'].forEach(k=>document.getElementById('t-'+k).setAttribute('aria-pressed',String(k===t)));
- document.getElementById('v-swipe').hidden=t!=='swipe';document.getElementById('v-btns').hidden=t!=='swipe';document.getElementById('v-list').hidden=t!=='list';document.getElementById('v-browse').hidden=t!=='browse';
- if(t==='list')lists();else if(t==='browse')browse();else render();try{localStorage.setItem('summit-tab',t)}catch(e){}}
-['browse','swipe','list'].forEach(k=>document.getElementById('t-'+k).onclick=()=>tab(k));
+function tab(t){cur=t;['talk','browse','swipe','list'].forEach(k=>document.getElementById('t-'+k).setAttribute('aria-pressed',String(k===t)));
+ document.getElementById('v-swipe').hidden=t!=='swipe';document.getElementById('v-btns').hidden=t!=='swipe';document.getElementById('v-list').hidden=t!=='list';document.getElementById('v-browse').hidden=t!=='browse';document.getElementById('v-talk').hidden=t!=='talk';
+ if(t==='list')lists();else if(t==='browse')browse();else if(t==='talk')talk();else render();try{localStorage.setItem('summit-tab',t)}catch(e){}}
+['talk','browse','swipe','list'].forEach(k=>document.getElementById('t-'+k).onclick=()=>tab(k));
 document.getElementById('cl-open').onclick=()=>{const c=document.getElementById('cl-card');c.innerHTML=cardHTML(CL).replace('<span class="stamp y">TREFFEN</span><span class="stamp n">NEIN</span><span class="stamp t">TOP</span>','').replace('<span class="badge">Priorität</span>','<span class="badge">Gastgeberin</span>');wireNotes(c);document.getElementById('clo').hidden=false;};
-document.getElementById('cl-close').onclick=()=>{document.getElementById('clo').hidden=true;if(cur==='list')lists();};
+document.getElementById('cl-close').onclick=()=>{document.getElementById('clo').hidden=true;if(cur==='list')lists();if(cur==='talk')talk();};
 document.getElementById('qr-open').onclick=()=>{document.getElementById('qro').hidden=false};
 document.getElementById('qr-close').onclick=()=>{document.getElementById('qro').hidden=true};
 document.getElementById('qro').onclick=e=>{if(e.target.id==='qro')e.target.hidden=true};
-let t0='browse';try{t0=localStorage.getItem('summit-tab')||'browse'}catch(e){}
+let t0='browse';try{t0=localStorage.getItem('summit-tab')||'talk'}catch(e){}
 tab(t0);
 </script>
 </body>
